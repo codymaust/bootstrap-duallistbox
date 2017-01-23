@@ -123,13 +123,31 @@
     dualListbox.elements.select2.empty();
 
     dualListbox.element.find('option').each(function(index, item) {
-      var $item = $(item);
-      if ($item.prop('selected')) {
+      var $item = $(item),
+        selected = $item.prop('selected'),
+        inGroup = $item.parent().is('optgroup'),
+        $targetList = selected ? dualListbox.elements.select2 : dualListbox.elements.select1;
+
+      if (selected) {
         dualListbox.selectedElements++;
-        dualListbox.elements.select2.append($item.clone(true).prop('selected', $item.data('_selected')));
-      } else {
-        dualListbox.elements.select1.append($item.clone(true).prop('selected', $item.data('_selected')));
       }
+
+      if (inGroup) {
+        var $group = $item.parent(),
+          groupLabel = $group.attr('label'),
+          $groupInList = $targetList.find('optgroup[label="' + groupLabel + '"]');
+
+        if ($groupInList.length === 0) {
+          // create new group
+          $groupInList = $('<optgroup></optgroup>').attr('label', groupLabel);
+          $targetList.append($groupInList);
+        }
+
+        // append directly to the optgroup in the appropriate listbox
+        $targetList = $groupInList;
+      }
+
+      $targetList.append($item.clone(true).prop('selected', $item.data('_selected')));
     });
 
     if (dualListbox.settings.showFilterInputs) {
@@ -159,12 +177,32 @@
 
     options.each(function(index, item) {
       var $item = $(item),
-        isFiltered = true;
-      if (item.text.match(regex) || (dualListbox.settings.filterOnValues && $item.attr('value').match(regex) ) ) {
+        isFiltered = true,
+        inGroup = $item.parent().is('optgroup'),
+        $list = dualListbox.elements['select' + selectIndex],
+        $targetList = $list;
+
+      if (item.text.match(regex) || (inGroup && $item.parent().attr('label').match(regex)) || (dualListbox.settings.filterOnValues && $item.attr('value').match(regex))) {
         isFiltered = false;
-        dualListbox.elements['select'+selectIndex].append($item.clone(true).prop('selected', $item.data('_selected')));
+
+        if (inGroup) {
+          var $group = $item.parent(),
+            groupLabel = $group.attr('label'),
+            $groupInList = $targetList.find('optgroup[label="' + groupLabel + '"]');
+
+          if ($groupInList.length === 0) {
+            // create new group
+            $groupInList = $('<optgroup></optgroup>').attr('label', groupLabel);
+            $targetList.append($groupInList);
+          }
+
+          $targetList = $groupInList;
+        }
+
+        $targetList.append($item.clone(true).prop('selected', $item.data('_selected')));
       }
-      allOptions.eq($item.data('original-index')).data('filtered'+selectIndex, isFiltered);
+
+      dualListbox.element.find('option').eq($item.data('original-index')).data('filtered'+selectIndex, isFiltered);
     });
 
     refreshInfo(dualListbox);
@@ -198,9 +236,39 @@
   }
 
   function sortOptions(select) {
-    select.find('option').sort(function(a, b) {
+    var $sortedGroups = $(),
+      $options = select.find('option');
+
+    $options.sort(function(a, b) {
       return ($(a).data('original-index') > $(b).data('original-index')) ? 1 : -1;
-    }).appendTo(select);
+    });
+
+    options.each(function (index, item) {
+      processListItem(item);
+      var $item = $(item),
+        $targetList = select,
+        inGroup = $item.parent().is('optgroup');
+
+      if (inGroup) {
+        var $group = $item.parent(),
+          groupLabel = $group.attr('label'),
+          $groupInList = select.find('optgroup[label="' + groupLabel + '"]');
+
+        if ($groupInList.length === 0) {
+          $groupInList = $('<optgroup/>').attr('label', groupLabel);
+          $sortedGroups.append($groupInList);
+          select.append($groupInList);
+        } else {
+          $groupInList.appendTo(select);
+        }
+
+        $targetList = $groupInList;
+      }
+
+      $item.appendTo($targetList);
+    });
+
+    return $sortedGroups;
   }
 
   function clearSelections(dualListbox) {
@@ -217,7 +285,8 @@
       saveSelections(dualListbox, 1);
     }
 
-    dualListbox.elements.select1.find('option:selected').each(function(index, item) {
+    var options = dualListbox.elements.select1.find('option:selected');
+    options.each(function(index, item) {
       var $item = $(item);
       if (!$item.data('filtered1')) {
         changeSelectionState(dualListbox, $item.data('original-index'), true);
@@ -241,7 +310,8 @@
       saveSelections(dualListbox, 2);
     }
 
-    dualListbox.elements.select2.find('option:selected').each(function(index, item) {
+    var options = dualListbox.elements.select2.find('option:selected');
+    options.each(function(index, item) {
       var $item = $(item);
       if (!$item.data('filtered2')) {
         changeSelectionState(dualListbox, $item.data('original-index'), false);
