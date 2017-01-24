@@ -244,8 +244,7 @@
       return ($(a).data('original-index') > $(b).data('original-index')) ? 1 : -1;
     });
 
-    options.each(function (index, item) {
-      processListItem(item);
+    $options.each(function (index, item) {
       var $item = $(item),
         $targetList = select,
         inGroup = $item.parent().is('optgroup');
